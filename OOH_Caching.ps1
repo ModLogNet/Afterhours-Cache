@@ -171,6 +171,8 @@ $CachingIP = "10.3.2.1"
 $CachingPort = "12345"
 $CachingServer =$Cachingip+":"+$CachingPort
 
+$StoreDir = "D:\Cache_temp\"
+
 Invoke-RestMethod -Uri http://mesu.apple.com/assets/com_apple_MobileAsset_SoftwareUpdate/com_apple_MobileAsset_SoftwareUpdate.xml -Method Get -OutFile "c:\temp\info.plist"
 
 $pList = [xml](get-content "c:\temp\info.plist") | ConvertFrom-Plist
@@ -180,26 +182,29 @@ Foreach ($model in $models){
 
     $selectipads = $ipads|Where-Object -property supporteddevices -eq $model |Where-Object -property ReleaseType -ne "Beta"
     Foreach ($selectipad in $selectipads){
-    [string]$URL = $selectipad|%{$_.__BaseURL+$_.__RelativePath}
-    [string]$OSVer = $selectipad|%{$_.OSversion}
+        [System.Uri]$URL = $selectipad|%{$_.__BaseURL+$_.__RelativePath}
+        [string]$OSVer = $selectipad|%{$_.OSversion}
           
-    [string]$Build = $selectipad|%{$_.Build}
-    [string]$ipsw = "iPad_64bit_"+$OSVer+"_"+$Build+"_Restore.ipsw"
-    if ($url -like "http://updates-http.cdn-apple.com*"){
-        $url = $url-replace 'updates-http.cdn-apple.com',$CachingServer
-        $sourceURL = "?source=updates-http.cdn-apple.com"
-    }
-    if ($url -like "http://appldnld.apple.com*"){
-        $url = $url-replace 'appldnld.apple.com',$CachingServer
-        $sourceURL = "?source=appldnld.apple.com"
-    }
-    
-    Write-host "Model: " $model
-    write-host "URL for firmware: "$Url$sourceURL
-    
-    if ($dryrun = $false){
-       Invoke-RestMethod -Uri $Url$sourceURL -Method Get -OutFile $StoreDir
-    }
+        [string]$Build = $selectipad|%{$_.Build}
+        [string]$ipsw = "iPad_64bit_"+$OSVer+"_"+$Build+"_Restore.ipsw"
+
+        #re-assemble URL
+        $sourceURL="?source=" + $url.Authority
+        $LastURL = $URL.AbsoluteUri 
+        $LastURL = $LastURL -replace $url.Authority,$CachingServer
+        $LastURL = $LastURL + $sourceURL
+
+        #This needs to be changed to the actual IPSW filename
+        $filename = $url.Segments[$url.Segments.Count-1]
+
+        Write-host "[Model] - " $model
+        write-host "[URL for firmware] - "$LastURL
+        Write-host "[Output File] - " $StoreDir$filename
+        write-host ""
+        if ($dryrun = $false){
+           Invoke-RestMethod -Uri $LastURL -Method Get -OutFile $StoreDir$filename
+        }
+
     }
 
 }
